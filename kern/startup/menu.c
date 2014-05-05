@@ -437,6 +437,7 @@ static const char *opsmenu[] = {
 	"[sync]    Sync filesystems          ",
 	"[panic]   Intentional panic         ",
 	"[q]       Quit and shut down        ",
+        "[dth]     Enable DB_THREADS debug   ",
 	NULL
 };
 
@@ -450,6 +451,18 @@ cmd_opsmenu(int n, char **a)
 	showmenu("OS/161 operations menu", opsmenu);
 	return 0;
 }
+
+static
+int
+cmd_dth(int n, char **a)
+{
+        (void)n;
+        (void)a;
+
+        dbflags |= DB_THREADS;
+        return 0;
+}
+
 
 static const char *testmenu[] = {
 	"[at]  Array test                    ",
@@ -548,6 +561,7 @@ static struct {
 	{ "q",		cmd_quit },
 	{ "exit",	cmd_quit },
 	{ "halt",	cmd_quit },
+        { "dth",        cmd_dth },
 
 #if OPT_SYNCHPROBS
 	/* in-kernel synchronization problem(s) */
