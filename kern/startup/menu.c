@@ -463,6 +463,16 @@ cmd_dth(int n, char **a)
         return 0;
 }
 
+static
+int
+cmd_dsync(int n, char **a)
+{
+        (void)n;
+        (void)a;
+
+        dbflags |= DB_SYNCPROB;
+        return 0;
+}
 
 static const char *testmenu[] = {
 	"[at]  Array test                    ",
@@ -561,7 +571,8 @@ static struct {
 	{ "q",		cmd_quit },
 	{ "exit",	cmd_quit },
 	{ "halt",	cmd_quit },
-        { "dth",        cmd_dth },
+	{ "dth",	cmd_dth },
+	{ "dsync",	cmd_dsync },
 
 #if OPT_SYNCHPROBS
 	/* in-kernel synchronization problem(s) */
