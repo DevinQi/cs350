@@ -14,7 +14,7 @@ static int totalBowls;
 
 static volatile bool mouseTurn;
 static volatile int slotsLeft;
-static volatile int slotsUsed;
+static volatile int bowlsUsed;
 
 static volatile int numCatWaiting;
 static volatile int numMouseWaiting;
@@ -24,15 +24,6 @@ void switch_kind_to(bool mouse);
 void any_before_eating(unsigned int bowl, bool mouse);
 void any_after_eating(unsigned int bowl, bool mouse);
 
-
-/* 
- * The CatMouse simulation will call this function once before any cat or
- * mouse tries to each.
- *
- * You can use it to initialize synchronization and other variables.
- * 
- * parameters: the number of bowls
- */
 void
 catmouse_sync_init(int bowls)
 {
@@ -52,9 +43,9 @@ catmouse_sync_init(int bowls)
   }
 
   totalBowls = bowls;
-  slotsLeft = totalBowls;
-  mouseTurn = false;
-  util = kmalloc(bowls*sizeof(bool));
+  slotsLeft = 2 * bowls;
+  mouseTurn = true;
+  util = kmalloc(bowls * sizeof(bool));
   for(int i = 0; i < bowls; i++) {
     util[i] = false;
   }
@@ -64,94 +55,86 @@ catmouse_sync_init(int bowls)
   return;
 }
 
-/* 
- * The CatMouse simulation will call this function once after all cat
- * and mouse simulations are finished.
- *
- * You can use it to clean up any synchronization and other variables.
- *
- * parameters: the number of bowls
- */
 void
 catmouse_sync_cleanup(int bowls)
 {
   (void) bowls;
+
   KASSERT(gLock != NULL);
+  KASSERT(cat_cv != NULL);
+  KASSERT(mouse_cv != NULL);
+
   lock_destroy(gLock);
   cv_destroy(cat_cv);
   cv_destroy(mouse_cv);
+
   if(util != NULL) {
     kfree( (void *) util);
   }
 }
 
-void switch_kind_to(bool mouse) {
-  struct cv *condition;
+void
+switch_kind_to(bool mouse) {
+  // Trying to switch to mouse
   if(mouse) {
-    if(numMouseWaiting > 0) {
-      mouse = true;
-    }
-    else {
-      mouse = false;
-    }
+    // Only switch if there are mice waiting
+    mouse = numMouseWaiting > 0;
   }
+  // Trying to switch to cat
   else {
-    if(numCatWaiting > 0) {
-      mouse = false;
-    }
-    else {
-      mouse = true;
-    }
+    // Only switch if there are cats waiting
+    mouse = !(numCatWaiting > 0);
   }
 
-
-  if(mouse) {
-    condition = mouse_cv;
-  }
-  else {
-    condition = cat_cv;
-  }
-  slotsLeft = totalBowls;
+  // Reset slots left
+  slotsLeft = 2 * totalBowls;
+  // Switch to other creature
   mouseTurn = mouse;
-  cv_broadcast(condition, gLock);
+  // Wake up all creatures of the correct type
+  struct cv *cdn = mouse ? mouse_cv : cat_cv;
+  cv_broadcast(cdn, gLock);
 }
 
-void any_before_eating(unsigned int bowl, bool mouse) {
+void
+any_before_eating(unsigned int bowl, bool mouse) {
   KASSERT(gLock != NULL);
   lock_acquire(gLock);
 
-  struct cv *condition;
+  // Find condition variable
+  struct cv *cdn = mouse ? mouse_cv : cat_cv;
+  // Increase waiting
   if(mouse) {
     numMouseWaiting++;
-    condition = mouse_cv;
   }
   else {
     numCatWaiting++;
-    condition = cat_cv;
   }
 
+  // Wait until all conditions are satisfied
   bool ready = false;
-
   while(!ready) {
     ready = true;
+    // If not the creature's turn
     if(mouse != mouseTurn) {
-      //If nobody eating, switch
-      if(slotsUsed == 0) {
+      // If nobody eating, switch to the creature
+      if(bowlsUsed == 0) {
         switch_kind_to(mouse);
       }
       else {
         ready = false;
       }
     }
+    // If creatures already ate here
     if(slotsLeft <= 0) {
       ready = false;
     }
+    // If bowl is occupied
     if(util[bowl-1]) {
       ready = false;
     }
 
     if(!ready) {
-      cv_wait(condition, gLock);
+      cv_wait(cdn, gLock);
     }
   }
 
@@ -159,10 +142,13 @@ void any_before_eating(unsigned int bowl, bool mouse) {
   KASSERT(slotsLeft > 0);
   KASSERT(!util[bowl-1]);
 
+  // Take the bowl
   util[bowl-1] = true;
-  slotsUsed++;
+  bowlsUsed++;
+  // Use a slot
   slotsLeft--;
 
+  // Decrease waiting
   if(mouse) {
     numMouseWaiting--;
   }
@@ -173,43 +159,26 @@ void any_before_eating(unsigned int bowl, bool mouse) {
   lock_release(gLock);  
 }
 
-void any_after_eating(unsigned int bowl, bool mouse) {
+void
+any_after_eating(unsigned int bowl, bool mouse) {
   KASSERT(gLock != NULL);
   lock_acquire(gLock);
 
-  struct cv *other_condition;
-  if(mouse) {
-    other_condition = cat_cv;
-  }
-  else {
-    other_condition = mouse_cv;
-  }
-
   KASSERT(mouse == mouseTurn);
-  KASSERT(slotsUsed > 0);
+  KASSERT(bowlsUsed > 0);
   KASSERT(util[bowl-1]);
 
+  // Free bowl
   util[bowl-1] = false;
-  slotsUsed--;
+  bowlsUsed--;
 
-  if(slotsUsed == 0) {
+  // Switch kind if all bowls are free
+  if(bowlsUsed == 0) {
     switch_kind_to(!mouse);
   }
 
   lock_release(gLock);  
 }
-
-/*
- * The CatMouse simulation will call this function each time a cat wants
- * to eat, before it eats.
- * This function should cause the calling thread (a cat simulation thread)
- * to block until it is OK for a cat to eat at the specified bowl.
- *
- * parameter: the number of the bowl at which the cat is trying to eat
- *             legal bowl numbers are 1..NumBowls
- *
- * return value: none
- */
 
 void
 cat_before_eating(unsigned int bowl) 
@@ -217,55 +186,17 @@ cat_before_eating(unsigned int bowl)
   any_before_eating(bowl, false);
 }
 
-/*
- * The CatMouse simulation will call this function each time a cat finishes
- * eating.
- *
- * You can use this function to wake up other creatures that may have been
- * waiting to eat until this cat finished.
- *
- * parameter: the number of the bowl at which the cat is finishing eating.
- *             legal bowl numbers are 1..NumBowls
- *
- * return value: none
- */
-
 void
 cat_after_eating(unsigned int bowl) 
 {
   any_after_eating(bowl, false);
 }
 
-/*
- * The CatMouse simulation will call this function each time a mouse wants
- * to eat, before it eats.
- * This function should cause the calling thread (a mouse simulation thread)
- * to block until it is OK for a mouse to eat at the specified bowl.
- *
- * parameter: the number of the bowl at which the mouse is trying to eat
- *             legal bowl numbers are 1..NumBowls
- *
- * return value: none
- */
-
 void
 mouse_before_eating(unsigned int bowl) 
 {
   any_before_eating(bowl, true);
 }
-
-/*
- * The CatMouse simulation will call this function each time a mouse finishes
- * eating.
- *
- * You can use this function to wake up other creatures that may have been
- * waiting to eat until this mouse finished.
- *
- * parameter: the number of the bowl at which the mouse is finishing eating.
- *             legal bowl numbers are 1..NumBowls
- *
- * return value: none
- */
 
 void
 mouse_after_eating(unsigned int bowl) 
