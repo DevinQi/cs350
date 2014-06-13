@@ -113,12 +113,12 @@ void
 proc_destroy(struct proc *proc)
 {
 	/*
-         * note: some parts of the process structure, such as the address space,
-         *  are destroyed in sys_exit, before we get here
-         *
-         * note: depending on where this function is called from, curproc may not
-         * be defined because the calling thread may have already detached itself
-         * from the process.
+	 * note: some parts of the process structure, such as the address space,
+	 *  are destroyed in sys_exit, before we get here
+	 *
+	 * note: depending on where this function is called from, curproc may not
+	 * be defined because the calling thread may have already detached itself
+	 * from the process.
 	 */
 
 	KASSERT(proc != NULL);
@@ -159,7 +159,7 @@ proc_destroy(struct proc *proc)
 
 #ifdef UW
 	if (proc->console) {
-	  vfs_close(proc->console);
+		vfs_close(proc->console);
 	}
 #endif // UW
 
@@ -171,15 +171,15 @@ proc_destroy(struct proc *proc)
 
 #ifdef UW
 	/* decrement the process count */
-        /* note: kproc is not included in the process count, but proc_destroy
-	   is never called on kproc (see KASSERT above), so we're OK to decrement
-	   the proc_count unconditionally here */
+	/* note: kproc is not included in the process count, but proc_destroy
+	 *  is never called on kproc (see KASSERT above), so we're OK to decrement
+	 *  the proc_count unconditionally here */
 	P(proc_count_mutex); 
 	KASSERT(proc_count > 0);
 	proc_count--;
 	/* signal the kernel menu thread if the process count has reached zero */
 	if (proc_count == 0) {
-	  V(no_proc_sem);
+		V(no_proc_sem);
 	}
 	V(proc_count_mutex);
 #endif // UW
@@ -193,20 +193,20 @@ proc_destroy(struct proc *proc)
 void
 proc_bootstrap(void)
 {
-  kproc = proc_create("[kernel]");
-  if (kproc == NULL) {
-    panic("proc_create for kproc failed\n");
-  }
+	kproc = proc_create("[kernel]");
+	if (kproc == NULL) {
+		panic("proc_create for kproc failed\n");
+	}
 #ifdef UW
-  proc_count = 0;
-  proc_count_mutex = sem_create("proc_count_mutex",1);
-  if (proc_count_mutex == NULL) {
-    panic("could not create proc_count_mutex semaphore\n");
-  }
-  no_proc_sem = sem_create("no_proc_sem",0);
-  if (no_proc_sem == NULL) {
-    panic("could not create no_proc_sem semaphore\n");
-  }
+	proc_count = 0;
+	proc_count_mutex = sem_create("proc_count_mutex",1);
+	if (proc_count_mutex == NULL) {
+		panic("could not create proc_count_mutex semaphore\n");
+	}
+	no_proc_sem = sem_create("no_proc_sem",0);
+	if (no_proc_sem == NULL) {
+		panic("could not create no_proc_sem semaphore\n");
+	}
 #endif // UW 
 }
 
@@ -231,14 +231,14 @@ proc_create_runprogram(const char *name)
 	/* open the console - this should always succeed */
 	console_path = kstrdup("con:");
 	if (console_path == NULL) {
-	  panic("unable to copy console path name during process creation\n");
+		panic("unable to copy console path name during process creation\n");
 	}
 	if (vfs_open(console_path,O_WRONLY,0,&(proc->console))) {
-	  panic("unable to open the console during process creation\n");
+		panic("unable to open the console during process creation\n");
 	}
 	kfree(console_path);
 #endif // UW
-	  
+
 	/* VM fields */
 
 	proc->p_addrspace = NULL;
@@ -247,8 +247,8 @@ proc_create_runprogram(const char *name)
 
 #ifdef UW
 	/* we do not need to acquire the p_lock here, the running thread should
-           have the only reference to this process */
-        /* also, acquiring the p_lock is problematic because VOP_INCREF may block */
+	 *  have the only reference to this process */
+	/* also, acquiring the p_lock is problematic because VOP_INCREF may block */
 	if (curproc->p_cwd != NULL) {
 		VOP_INCREF(curproc->p_cwd);
 		proc->p_cwd = curproc->p_cwd;
@@ -264,8 +264,8 @@ proc_create_runprogram(const char *name)
 
 #ifdef UW
 	/* increment the count of processes */
-        /* we are assuming that all procs, including those created by fork(),
-           are created using a call to proc_create_runprogram  */
+	/* we are assuming that all procs, including those created by fork(),
+	 * are created using a call to proc_create_runprogram  */
 	P(proc_count_mutex); 
 	proc_count++;
 	V(proc_count_mutex);
@@ -334,9 +334,9 @@ curproc_getas(void)
 {
 	struct addrspace *as;
 #ifdef UW
-        /* Until user processes are created, threads used in testing 
-         * (i.e., kernel threads) have no process or address space.
-         */
+	/* Until user processes are created, threads used in testing 
+	 * (i.e., kernel threads) have no process or address space.
+	 */
 	if (curproc == NULL) {
 		return NULL;
 	}
