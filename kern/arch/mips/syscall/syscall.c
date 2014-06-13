@@ -132,6 +132,11 @@ syscall(struct trapframe *tf)
 #endif // UW
 
 			/* Add stuff here */
+#if OPT_A2
+	case SYS_fork:
+		err = sys_fork((pid_t *)&retval, tf);
+		break;
+#endif // OPT_A2
  
 	default:
 		kprintf("Unknown syscall %d\n", callno);
@@ -179,5 +184,28 @@ syscall(struct trapframe *tf)
 void
 enter_forked_process(struct trapframe *tf)
 {
+#if OPT_A2
+	//Simulate a return from syscall back to user mode
+	//Most code came from syscall.c after handling the syscall
+
+	//v0 contains the return value (0 in the child process)
+	tf->tf_v0 = 0;
+	tf->tf_a3 = 0;
+	
+	/*
+	 * Now, advance the program counter, to avoid restarting
+	 * the syscall over and over again.
+	 */
+	tf->tf_epc += 4;
+
+	/* Make sure the syscall code didn't forget to lower spl */
+	KASSERT(curthread->t_curspl == 0);
+	/* ...or leak any spinlocks */
+	KASSERT(curthread->t_iplhigh_count == 0);
+
+	//Use the tf to return to user mode
+	mips_usermode(tf);
+#else
 	(void)tf;
+#endif // OPT_A2
 }

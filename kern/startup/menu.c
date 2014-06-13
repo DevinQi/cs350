@@ -437,7 +437,7 @@ static const char *opsmenu[] = {
 	"[sync]    Sync filesystems          ",
 	"[panic]   Intentional panic         ",
 	"[q]       Quit and shut down        ",
-	"[dth]     Enable DB_THREADS debug   ",
+	"[dbg]     Enable debugging info     ",
 	NULL
 };
 
@@ -465,12 +465,12 @@ cmd_dth(int n, char **a)
 
 static
 int
-cmd_dsync(int n, char **a)
+cmd_dbg(int n, char **a)
 {
         (void)n;
         (void)a;
 
-        dbflags |= DB_SYNCPROB;
+        dbflags |= DB_PROCSYS;
         return 0;
 }
 
@@ -572,7 +572,7 @@ static struct {
 	{ "exit",	cmd_quit },
 	{ "halt",	cmd_quit },
 	{ "dth",	cmd_dth },
-	{ "dsync",	cmd_dsync },
+	{ "dbg",	cmd_dbg },
 
 #if OPT_SYNCHPROBS
 	/* in-kernel synchronization problem(s) */

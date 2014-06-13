@@ -29,6 +29,7 @@
 
 #ifndef _SYSCALL_H_
 #define _SYSCALL_H_
+#include "opt-A2.h"
 
 
 struct trapframe; /* from <machine/trapframe.h> */
@@ -63,6 +64,11 @@ int sys_write(int fdesc,userptr_t ubuf,unsigned int nbytes,int *retval);
 void sys__exit(int exitcode);
 int sys_getpid(pid_t *retval);
 int sys_waitpid(pid_t pid, userptr_t status, int options, pid_t *retval);
+
+#if OPT_A2
+int sys_fork(pid_t *retval, struct trapframe *tf);
+void sys_fork_new_process(void *ptr, unsigned long nargs);
+#endif // OPT_A2
 
 #endif // UW
 
