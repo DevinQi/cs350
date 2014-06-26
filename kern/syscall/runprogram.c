@@ -44,6 +44,124 @@
 #include <vfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <copyinout.h>
+
+#if OPT_A2
+
+int
+runprogram(int argc, char **argv, bool using_kernel_mem)
+{
+	struct addrspace *as, *oldas;
+	struct vnode *v;
+	vaddr_t entrypoint, stackptr;
+	int result;
+
+	//Open the file
+	char *program = kstrdup(argv[0]);
+	if(program == NULL) {
+		return E2BIG;
+	}
+
+	result = vfs_open(program, O_RDONLY, 0, &v);
+	kfree(program);
+	if (result) {
+		return result;
+	}
+
+	//Create a new address space
+	as = as_create();
+	if (as == NULL) {
+		vfs_close(v);
+		return ENOMEM;
+	}
+
+	//Switch to new address space, as holds the old address space now
+	oldas = curproc_setas(as);
+	as_activate();
+
+	//Load the executable
+	result = load_elf(v, &entrypoint);
+	vfs_close(v);
+	if (result) {
+		//Cleanup address space
+		as_deactivate();
+		as_destroy(as);
+		//Switch back to previous address space
+		if(oldas) {
+			curproc_setas(oldas);
+			as_activate();
+		}
+		return result;
+	}
+
+	//Define the user stack in the address space
+	result = as_define_stack(as, &stackptr);
+	if (result) {
+		//Cleanup address space
+		as_deactivate();
+		as_destroy(as);
+		//Switch back to previous address space
+		if(oldas) {
+			curproc_setas(oldas);
+			as_activate();
+		}
+		return result;
+	}
+
+	//Paste in argv
+	userptr_t user_argv = runprogram_argv_to_userspace(&stackptr, argc, argv);
+
+	//Cleanup argv in kernel space
+	if(using_kernel_mem) {
+		runprogram_argv_destroy(argc, argv);
+	}
+
+	//Warp to user mode
+	enter_new_process(argc, user_argv,
+			  stackptr, entrypoint);
+	
+	//enter_new_process does not return
+	panic("enter_new_process returned\n");
+	return EINVAL;
+}
+
+userptr_t
+runprogram_argv_to_userspace(vaddr_t *stackptr_, int argc, char **argv)
+{
+	vaddr_t stackptr = *stackptr_;
+
+	char **user_argv;
+	//First, make space for an argv
+	stackptr -= sizeof(char *) * (argc + 1);
+	user_argv = (char **)stackptr;
+	//Then, copy each string in argv
+	for(int i = 0; i < argc; i++) {
+		int length = strlen(argv[i]) + 1;
+		//Move stack ptr
+		stackptr -= length;
+		//Set the ptr in argv
+		user_argv[i] = (char *)stackptr;
+		copyout((const void *) argv[i], (userptr_t) stackptr, length);
+	}
+	user_argv[argc] = NULL;
+
+	*stackptr_ = stackptr;
+
+	return (userptr_t) user_argv;
+}
+
+void
+runprogram_argv_destroy(int argc, char **argv)
+{
+	for(int i = 0; i < argc; i++) {
+		if(argv[i] != NULL) {
+			kfree(argv[i]);
+		}
+	}
+	kfree(argv);
+}
+
+#else
 
 /*
  * Load program "progname" and start running it in usermode.
@@ -106,3 +224,4 @@ runprogram(char *progname)
 	return EINVAL;
 }
 
+#endif // OPT_A2

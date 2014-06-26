@@ -67,6 +67,8 @@ int sys_waitpid(pid_t pid, userptr_t status, int options, pid_t *retval);
 
 #if OPT_A2
 int sys_fork(pid_t *retval, struct trapframe *tf);
+int sys_execv(int *retval, userptr_t program, userptr_t args);
+char **execv_copyin_args(userptr_t program, userptr_t args, int *argc_return);
 void sys_fork_new_process(void *ptr, unsigned long nargs);
 #endif // OPT_A2
 

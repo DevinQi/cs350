@@ -10,6 +10,7 @@
 #include <addrspace.h>
 #include <copyinout.h>
 #include <mips/trapframe.h>
+#include <test.h>
 
 	/* this implementation of sys__exit does not do anything with the exit code */
 	/* this needs to be fixed to get exit() and waitpid() working properly */
@@ -295,6 +296,81 @@ sys_fork_new_process(void *ptr, unsigned long nargs)
 	kfree(tf_copy);
 
 	enter_forked_process(&tf);
+}
+
+int
+sys_execv(int *retval, userptr_t program, userptr_t args)
+{
+	int result;
+
+	//If we do return, an error must have occurred
+	*retval = -1;
+
+	//Copy arguments to kernel space first
+	int argc = 0;
+	char **argv = execv_copyin_args(program, args, &argc);
+
+	if(argv == NULL) {
+		return E2BIG;
+	}
+	
+	result = runprogram(argc, argv, true);
+	//Should not return to here
+	runprogram_argv_destroy(argc, argv);
+	return result;
+}
+
+char **
+execv_copyin_args(userptr_t program, userptr_t args, int *argc_return)
+{
+	//Count argc
+	int argc = 1; //(Start with 1 for program)
+	char **args_ptr = (char **)args;
+	while(*args_ptr != NULL) {
+		argc++;
+		args_ptr++;
+	}
+
+	//Try to allocate argv with argc+1 for the extra NULL pointer at the end
+	char **argv = kmalloc(sizeof(char *) * (argc + 1));
+	if(argv == NULL) {
+		return NULL;
+	}
+
+	//Copy in program
+	argv[0] = kstrdup((const char*)program);
+	if(argv[0] == NULL) {
+		kfree(argv);
+		return NULL;
+	}
+
+	//Zero pointers in case of error, including argv[argc]
+	for(int i = 1; i < argc + 1; i++) {
+		argv[i] = NULL;
+	}
+
+	//Copy in args
+	bool fail = false;
+	args_ptr = (char **)args;
+	for(int i = 1; i < argc; i++) {
+		argv[i] = kstrdup((const char*)args_ptr[i - 1]);
+		//Stop if failed
+		if(argv[i] == NULL) {
+			fail = true;
+			break;
+		}
+	}
+	if(fail) {
+		runprogram_argv_destroy(argc, argv);
+		return NULL;
+	}
+
+	//By now, argc and argv should be setup properly
+
+	//Store argc
+	*argc_return = argc;
+	//Return argv
+	return argv;
 }
 
 #endif // OPT_A2
