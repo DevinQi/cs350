@@ -30,6 +30,7 @@
 #ifndef _SYSCALL_H_
 #define _SYSCALL_H_
 #include "opt-A2.h"
+#include "opt-A3.h"
 
 
 struct trapframe; /* from <machine/trapframe.h> */
@@ -71,6 +72,10 @@ int sys_execv(int *retval, userptr_t program, userptr_t args);
 char **execv_copyin_args(userptr_t program, userptr_t args, int *argc_return);
 void sys_fork_new_process(void *ptr, unsigned long nargs);
 #endif // OPT_A2
+#if OPT_A3
+void _sys__exit(int exitcode);
+void terminate_exit(int sig);
+#endif // OPT_A3
 
 #endif // UW
 

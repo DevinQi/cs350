@@ -475,7 +475,7 @@ cmd_dbg(int n, char **a)
         (void)n;
         (void)a;
 
-        dbflags |= DB_PROCSYS;
+        dbflags |= DB_VM;
         return 0;
 }
 

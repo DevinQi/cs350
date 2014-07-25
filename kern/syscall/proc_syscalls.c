@@ -15,7 +15,11 @@
 	/* this implementation of sys__exit does not do anything with the exit code */
 	/* this needs to be fixed to get exit() and waitpid() working properly */
 
+#if OPT_A3
+void _sys__exit(int exitcode) {
+#else
 void sys__exit(int exitcode) {
+#endif // OPT_A3
 
 	struct addrspace *as;
 	struct proc *p = curproc;
@@ -68,7 +72,11 @@ void sys__exit(int exitcode) {
 	//If parent still alive
 	if(p_data->p_parent) {
 		//Save exitcode for parent processes
+#if OPT_A3
+		p_data->p_exit_code = exitcode;
+#else
 		p_data->p_exit_code = _MKWAIT_EXIT(exitcode);
+#endif // OPT_A3
 
 		//Signal process exit to waiting members
 		p_data->p_exited = true;
@@ -96,6 +104,17 @@ void sys__exit(int exitcode) {
 	panic("return from thread_exit in sys_exit\n");
 }
 
+#if OPT_A3
+
+void sys__exit(int exitcode) {
+	_sys__exit(_MKWAIT_EXIT(exitcode));
+}
+
+void terminate_exit(int sig) {
+	_sys__exit(_MKWAIT_SIG(sig));
+}
+
+#endif // OPT_A3
 
 /* stub handler for getpid() system call                */
 int
